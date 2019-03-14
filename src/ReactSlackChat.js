@@ -1,5 +1,6 @@
-import React, { Component, PropTypes } from 'react';
+import React, { Component } from 'react';
 import classNames from 'classnames';
+import PropTypes from 'prop-types';
 
 import { rtm, channels } from 'slack';
 import { load as emojiLoader, parse as emojiParser } from 'gh-emoji';
@@ -31,7 +32,7 @@ import { isHookMessage, execHooksIfFound } from './lib/hooks';
 // Themes
 import { changeColorRecursive } from './lib/themes';
 
-export class ReactSlackChat extends Component {
+class ReactSlackChat extends Component {
   constructor(args) {
     super(args);
     // Create Bot
@@ -657,3 +658,5 @@ ReactSlackChat.propTypes = {
   hooks: PropTypes.array,
   debugMode: PropTypes.bool
 };
+
+export default ReactSlackChat;
