@@ -14,5 +14,3 @@ build
 .env
 npm-debug.log
 
-# dist
-dist
