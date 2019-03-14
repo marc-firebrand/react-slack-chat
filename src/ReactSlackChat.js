@@ -1,36 +1,44 @@
-import React, { Component } from 'react';
+import React, {Component} from 'react';
 import classNames from 'classnames';
 import PropTypes from 'prop-types';
 
-import { rtm, channels } from 'slack';
-import { load as emojiLoader, parse as emojiParser } from 'gh-emoji';
+import {
+  channels,
+  rtm
+} from 'slack';
+import {
+  load as emojiLoader,
+  parse as emojiParser
+} from 'gh-emoji';
 
 import User from './User';
 import styles from './ReactSlackChat.scss';
 
 import defaultChannelIcon from './assets/team.svg';
-
 // Chat Functions
 import {
-  wasIMentioned,
   decodeHtml,
-  postMessage,
-  postFile,
   getNewMessages,
-  hasEmoji,
   hasAttachment,
+  hasEmoji,
+  isAdmin,
   isSystemMessage,
-  isAdmin
+  postFile,
+  postMessage,
+  wasIMentioned
 } from './lib/chat-functions';
-
 // Utils
-import { debugLog, arraysIdentical } from './lib/utils';
-
+import {
+  arraysIdentical,
+  debugLog
+} from './lib/utils';
 // Hooks
-import { isHookMessage, execHooksIfFound } from './lib/hooks';
-
+import {
+  execHooksIfFound,
+  isHookMessage
+} from './lib/hooks';
 // Themes
-import { changeColorRecursive } from './lib/themes';
+import {changeColorRecursive} from './lib/themes';
 
 class ReactSlackChat extends Component {
   constructor(args) {
@@ -50,6 +58,7 @@ class ReactSlackChat extends Component {
       userThreadTss: [],
       postMyMessage: '',
       postMyFile: '',
+      latestTs: 0,
       chatbox: {
         active: false,
         channelActiveView: false,
@@ -117,7 +126,7 @@ class ReactSlackChat extends Component {
 
   gotNewMessages(newMessages) {
     const newCount = this.state.newMessageNotification + newMessages.length;
-    this.setState({ newMessageNotification: newCount });
+    this.setState({newMessageNotification: newCount});
   }
 
   displayFormattedMessage(message) {
@@ -141,7 +150,7 @@ class ReactSlackChat extends Component {
             {
               didIPostIt
                 // show customer image
-                ? <img src={this.props.userImage} className={styles.user__contact__photo} alt='userIcon' />
+                ? <img src={this.props.userImage} className={styles.user__contact__photo} alt='userIcon'/>
                 : null
             }
             <div className={classNames(styles.chat__message, didIPostIt ? styles.mine : styles.notMine)}>
@@ -186,15 +195,15 @@ class ReactSlackChat extends Component {
       {
         myMessage
           // show customer image
-          ? <img src={this.props.userImage} className={styles.user__contact__photo} alt='userIcon' />
+          ? <img src={this.props.userImage} className={styles.user__contact__photo} alt='userIcon'/>
           : null
       }
       {
         textHasEmoji
-        // dangerouslySetInnerHTML only if text has Emoji
-        ? <div className={classNames(styles.chat__message, mentioned ? styles.mentioned : '')} dangerouslySetInnerHTML={{__html: messageText}}></div>
-        // else display it normally
-        : <div className={classNames(styles.chat__message, mentioned ? styles.mentioned : '')}>
+          // dangerouslySetInnerHTML only if text has Emoji
+          ? <div className={classNames(styles.chat__message, mentioned ? styles.mentioned : '')} dangerouslySetInnerHTML={{__html: messageText}}></div>
+          // else display it normally
+          : <div className={classNames(styles.chat__message, mentioned ? styles.mentioned : '')}>
             {messageText}
           </div>
       }
@@ -212,9 +221,9 @@ class ReactSlackChat extends Component {
     // user should be active / online
     // user.presence === 'active' &&
     return !user.is_bot;
-      // And is NOT a bot
-      // slackbot hack, it thinks its not a bot :/
-      // && user.name.indexOf('slackbot') === -1;
+    // And is NOT a bot
+    // slackbot hack, it thinks its not a bot :/
+    // && user.name.indexOf('slackbot') === -1;
   }
 
   connectBot() {
@@ -245,10 +254,10 @@ class ReactSlackChat extends Component {
               }
             });
           });
-          return resolve({ channels, onlineUsers });
+          return resolve({channels, onlineUsers});
         });
         // tell the bot to listen
-        this.bot.listen({ token: this.apiToken }, err => {
+        this.bot.listen({token: this.apiToken}, err => {
           if (err) {
             debugLog`Could not connect to Slack Server. Reason: ${JSON.stringify(err)}`;
             this.setState({
@@ -262,7 +271,7 @@ class ReactSlackChat extends Component {
     });
   }
 
-  postMyMessage () {
+  postMyMessage() {
     return postMessage({
       text: this.state.postMyMessage,
       lastThreadTs: this.state.userThreadTss[this.state.userThreadTss.length - 1],
@@ -321,9 +330,8 @@ class ReactSlackChat extends Component {
             // We know they are really new messages by checking to see if we already have messages in the state
             // Only if we atleast have some messages in the state
             // Grab new messages
-            const newMessages = getNewMessages(this.state.messages, data.messages, this.props.botName);
+            const newMessages = getNewMessages(this.state.messages, data.messages, this.props.botName, this.state.latestTs);
             this.gotNewMessages(newMessages);
-
             // Iterate over the new messages and exec any action hooks if found
             newMessages ? newMessages.map(message => execHooksIfFound({
               message,
@@ -338,8 +346,7 @@ class ReactSlackChat extends Component {
           if (this.props.singleUserMode) {
             if (that.messages.length > 0) {
               that.messages = that.messages.filter(
-                (message) =>
-                {
+                (message) => {
                   if (message.username === that.props.botName) {
                     if (message.thread_ts) {
                       this.state.userThreadTss.indexOf(message.thread_ts) === -1 ? this.state.userThreadTss.push(message.thread_ts) : null;
@@ -360,8 +367,12 @@ class ReactSlackChat extends Component {
             // add timestamp so list item will have unique key
             that.messages.unshift({text: this.props.defaultMessage, ts: this.chatInitiatedTs});
           }
-          return this.setState({
-            messages: that.messages
+          // Store the latest timestamp in state to avoid querying the same data multiple times
+          return this.setState(prevState => {
+            return {
+              messages: that.messages,
+              latestTs: that.messages.length > 0 ? that.messages[that.messages.length - 1].ts : prevState.latestTs
+            };
           }, () => {
             // if div is already scrolled to bottom, scroll down again just incase a new message has arrived
             const chatMessages = document.getElementById('widget-reactSlakChatMessages');
@@ -391,17 +402,17 @@ class ReactSlackChat extends Component {
     });
     const imageToReturn = image
       ? // Found backend user
-      <img src={image} className={styles.chat__contact__photo} alt='mentionedUserImg' />
+      <img src={image} className={styles.chat__contact__photo} alt='mentionedUserImg'/>
       : (
         // Check admin or client user?
         isAdmin(message)
-          ? <img src={`https://robohash.org/${userId}?set=set2`} className={styles.chat__contact__photo} alt={userId} />
+          ? <img src={`https://robohash.org/${userId}?set=set2`} className={styles.chat__contact__photo} alt={userId}/>
           : (
             // Check system message or client user?
             isSystemMessage(message)
-              ? <img src={`https://robohash.org/${userId}?set=set3`} className={styles.chat__contact__photo} alt={userId} />
+              ? <img src={`https://robohash.org/${userId}?set=set3`} className={styles.chat__contact__photo} alt={userId}/>
               : // Regular browser client user
-              <img src={`https://robohash.org/${userId}`} className={styles.chat__contact__photo} alt={userId} />
+              <img src={`https://robohash.org/${userId}`} className={styles.chat__contact__photo} alt={userId}/>
           )
       );
     return imageToReturn;
@@ -469,16 +480,16 @@ class ReactSlackChat extends Component {
     if (this.state.chatbox.active) {
       this.activeChannel = channel;
       this.setState({
-        chatbox: {
-          active: true,
-          channelActiveView: false,
-          chatActiveView: true
-        }
-      }, () => {
-        if (this.activeChannelInterval) {
-          clearInterval(this.activeChannelInterval);
-        }
-        this.loadMessages(channel)
+          chatbox: {
+            active: true,
+            channelActiveView: false,
+            chatActiveView: true
+          }
+        }, () => {
+          if (this.activeChannelInterval) {
+            clearInterval(this.activeChannelInterval);
+          }
+          this.loadMessages(channel);
         }
       );
       // Set this channel as active channel
@@ -549,12 +560,13 @@ class ReactSlackChat extends Component {
     }
     // Looks like nothing failed, let's start to render our chatbox
     const chatbox = <div>
-      <div className={classNames(styles.card, styles.transition, this.state.chatbox.active ? styles.active : '', this.state.chatbox.chatActiveView ? styles.chatActive : '')} onClick={this.openChatBox}>
+      <div className={classNames(styles.card, styles.transition, this.state.chatbox.active ? styles.active : '', this.state.chatbox.chatActiveView ? styles.chatActive : '')}
+           onClick={this.openChatBox}>
         <div className={styles.helpHeader}>
-        {
-          this.state.newMessageNotification > 0
+          {
+            this.state.newMessageNotification > 0
             && <span className={styles.unreadNotificationsBadge}>{this.state.newMessageNotification}</span>
-        }
+          }
           <h2 className={styles.transition}>{this.state.helpText || 'Help?'}</h2>
           <h2 className={styles.subText}>Click on a channel to interact.</h2>
         </div>
@@ -562,13 +574,13 @@ class ReactSlackChat extends Component {
         <div className={classNames(styles.channels, styles.transition, this.state.chatbox.channelActiveView ? styles.channelActive : '')}>
           {
             this.state.channels.map((channel) =>
-            <div className={styles.contact} key={channel.id} onClick={ (e) => this.goToChatView(e, channel) }>
-              {channel.icon
-                ? <img src={channel.icon} className={styles.contact__photo} />
-                : <div dangerouslySetInnerHTML={{__html: defaultChannelIcon}} className={styles.contact__photo} />}
-              <span className={styles.contact__name}>{channel.name}</span>
-              <span className={classNames(styles.contact__status, styles.online)}></span>
-            </div>
+              <div className={styles.contact} key={channel.id} onClick={(e) => this.goToChatView(e, channel)}>
+                {channel.icon
+                  ? <img src={channel.icon} className={styles.contact__photo}/>
+                  : <div dangerouslySetInnerHTML={{__html: defaultChannelIcon}} className={styles.contact__photo}/>}
+                <span className={styles.contact__name}>{channel.name}</span>
+                <span className={classNames(styles.contact__status, styles.online)}></span>
+              </div>
             )
           }
         </div>
@@ -581,8 +593,8 @@ class ReactSlackChat extends Component {
               <span className={styles.chat__name}>{this.activeChannel.name}</span>
             </div>
             {this.activeChannel.icon
-              ? <img src={this.activeChannel.icon} className={styles.channel__header__photo} />
-              : <div dangerouslySetInnerHTML={{__html: defaultChannelIcon}} className={styles.channel__header__photo} />}
+              ? <img src={this.activeChannel.icon} className={styles.channel__header__photo}/>
+              : <div dangerouslySetInnerHTML={{__html: defaultChannelIcon}} className={styles.channel__header__photo}/>}
             {this.props.closeChatButton
               ? <button className={styles.channel__close__button} onClick={this.closeChatBox}>×</button>
               : null
@@ -596,14 +608,14 @@ class ReactSlackChat extends Component {
           <div>
             {
               this.state.fileUploadLoader
-              ? <div className={styles.chat__file__uploading}>
-                <span className={styles.loading}>Uploading</span>
-              </div>
-              : null
+                ? <div className={styles.chat__file__uploading}>
+                  <span className={styles.loading}>Uploading</span>
+                </div>
+                : null
             }
             {
               !this.state.fileUploadLoader
-              ? <div>
+                ? <div>
                   <div className={styles.attachment}>
                     <label htmlFor='chat__upload' className={styles.attachmentIcon}>
                       <input
@@ -616,13 +628,13 @@ class ReactSlackChat extends Component {
                     </label>
                   </div>
                   <input type='text' className={styles.chat__input}
-                    value={this.state.postMyMessage}
-                    placeholder='Enter your message...'
-                    onKeyPress={(e) => e.key === 'Enter' ? this.postMyMessage() : null}
-                    onChange={ (e) => this.handleChange(e) }
+                         value={this.state.postMyMessage}
+                         placeholder='Enter your message...'
+                         onKeyPress={(e) => e.key === 'Enter' ? this.postMyMessage() : null}
+                         onChange={(e) => this.handleChange(e)}
                   />
-              </div>
-              : null
+                </div>
+                : null
             }
           </div>
         </div>

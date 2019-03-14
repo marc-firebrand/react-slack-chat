@@ -1,7 +1,15 @@
 import html2canvas from 'html2canvas';
 
-import { postMessage, postFile, decodeHtml, isAdmin, wasIMentioned } from './chat-functions';
-import { debugLog } from './utils';
+import {
+  decodeHtml,
+  isAdmin,
+  postFile,
+  postMessage,
+  wasIMentioned
+} from './chat-functions';
+import {debugLog} from './utils';
+
+let execList = [];
 
 // Define System hooks for everyone
 const systemHooks = [
@@ -15,7 +23,7 @@ const systemHooks = [
   },
   {
     id: 'getScreenshot',
-    action: ({ apiToken, channel, username }) => {
+    action: ({apiToken, channel, username}) => {
       return html2canvas(document.body)
         .then((canvas) => {
           const dataURL = canvas.toDataURL();
@@ -56,12 +64,12 @@ export const isHookMessage = (text) => {
 
 // Needs Message Object
 export const execHooksIfFound = ({
-  message,
-  customHooks,
-  apiToken,
-  channel,
-  username
-}) => {
+                                   message,
+                                   customHooks,
+                                   apiToken,
+                                   channel,
+                                   username
+                                 }) => {
   const messageText = decodeHtml(message.text);
   // Check to see if Action Hook is triggered
   const hookFound = isHookMessage(messageText);
@@ -83,7 +91,8 @@ export const execHooksIfFound = ({
             hook,
             apiToken,
             channel,
-            username
+            username,
+            message
           });
         }
       });
@@ -95,7 +104,8 @@ export const execHooksIfFound = ({
             hook,
             apiToken,
             channel,
-            username
+            username,
+            message
           });
         }
       });
@@ -104,22 +114,29 @@ export const execHooksIfFound = ({
 };
 
 const executeHook = async ({
-  hook,
-  apiToken,
-  channel,
-  username
-}) => {
-  debugLog('Hook trigger found', hook.id);
-  const hookActionResponse = await hook.action({
-    apiToken,
-    channel,
-    username
-  });
-  debugLog('Action executed. Posting response.');
-  return postMessage({
-    text: `$=>@[${hook.id}]:${hookActionResponse}`,
-    apiToken,
-    channel,
-    username
-  });
+   hook,
+   apiToken,
+   channel,
+   username,
+   message
+ }) => {
+  // Only execute hooks that are not currently executing (if upload takes too long it will trigger the hook again, could be endless)
+  if (execList.indexOf(message.ts) === -1) {
+    execList.push(message.ts);
+    debugLog('Hook trigger found', hook.id);
+    const hookActionResponse = await hook.action({
+      apiToken,
+      channel,
+      username
+    });
+    debugLog('Action executed. Posting response.');
+    return postMessage({
+      text: `$=>@[${hook.id}]:${hookActionResponse}`,
+      apiToken,
+      channel,
+      username
+    });
+  }
+
+  return null;
 };

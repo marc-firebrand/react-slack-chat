@@ -1,6 +1,7 @@
 export const debugLog = (...args) => {
   if (process.env.NODE_ENV !== 'production') {
-    return console.log('[ReactSlackChat]', ...args);
+    const curr = new Date().toLocaleString();
+    return console.log(curr + ' [ReactSlackChat]', ...args);
   }
 };
 

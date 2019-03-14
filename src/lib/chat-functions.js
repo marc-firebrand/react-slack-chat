@@ -58,11 +58,11 @@ export const postFile = ({
   });
 };
 
-export const getNewMessages = (old, total, botName) => {
+export const getNewMessages = (old, total, botName, latestTs) => {
   const oldText = JSON.stringify(old);
   // Message Order has to be consistent
   const differenceInMessages = total.filter(i => {
-    if (oldText.indexOf(JSON.stringify(i)) === -1 && i.username !== botName) {
+    if (oldText.indexOf(JSON.stringify(i)) === -1 && i.username !== botName && i.ts > latestTs) {
       return i;
     }
   });
